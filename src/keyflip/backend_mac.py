@@ -62,6 +62,72 @@ _ACCESSIBILITY_PANE = (
 )
 
 
+def wait_for_accessibility(timeout_s: float = 300.0, poll_s: float = 0.5) -> bool:
+    """Block until the user grants the permission, or give up.
+
+    The grant lands while we are sitting here, so there is no reason to make
+    anyone open the app a second time - which is the step people miss, because
+    nothing on screen says the first launch is now a dead process.
+
+    The run loop has to keep turning while we wait: the user is in System
+    Settings for a minute or two, and a GUI process that never pumps gets the
+    spinning wheel and an "application not responding" report.
+    """
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if has_accessibility():
+            return True
+        started = time.monotonic()
+        Quartz.CFRunLoopRunInMode(Quartz.kCFRunLoopDefaultMode, poll_s, False)
+        # With no sources attached the run loop returns at once; do not spin.
+        idle = poll_s - (time.monotonic() - started)
+        if idle > 0:
+            time.sleep(idle)
+    return has_accessibility()
+
+
+def can_tap() -> bool:
+    """Is an event tap actually installable right now?
+
+    Being trusted and being able to tap are not quite the same thing - the
+    window server can still refuse - and a tap that fails inside the listener
+    thread would only reach a stderr nobody is reading.  Ask up front instead.
+    """
+    probe = Quartz.CGEventTapCreate(
+        Quartz.kCGSessionEventTap,
+        Quartz.kCGHeadInsertEventTap,
+        Quartz.kCGEventTapOptionListenOnly,
+        Quartz.CGEventMaskBit(Quartz.kCGEventKeyDown),
+        lambda proxy, type_, event, refcon: event,
+        None,
+    )
+    if not probe:
+        return False
+    Quartz.CGEventTapEnable(probe, False)
+    return True
+
+
+def _alert(title: str, body: str, buttons: tuple[str, ...]) -> int:
+    """A modal alert from a process with no windows.  Returns the button index."""
+    from AppKit import (
+        NSAlert,
+        NSAlertFirstButtonReturn,
+        NSApplication,
+        NSApplicationActivationPolicyRegular,
+    )
+
+    app = NSApplication.sharedApplication()
+    app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+    app.activateIgnoringOtherApps_(True)
+
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_(title)
+    alert.setInformativeText_(body)
+    for label in buttons:
+        alert.addButtonWithTitle_(label)
+    return int(alert.runModal()) - int(NSAlertFirstButtonReturn)
+
+
 def show_permission_alert() -> bool:
     """Explain the missing permission on screen, for a Finder launch.
 
@@ -69,33 +135,33 @@ def show_permission_alert() -> bool:
     outcome: stderr goes nowhere, so without this the user sees nothing at all.
     Returns True if they asked to be taken to the settings pane.
     """
-    from AppKit import (
-        NSAlert,
-        NSAlertFirstButtonReturn,
-        NSApplication,
-        NSApplicationActivationPolicyRegular,
-        NSWorkspace,
-    )
+    from AppKit import NSWorkspace
     from Foundation import NSURL
 
-    app = NSApplication.sharedApplication()
-    app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
-    app.activateIgnoringOtherApps_(True)
-
-    alert = NSAlert.alloc().init()
-    alert.setMessageText_("keyflip needs Accessibility permission")
-    alert.setInformativeText_(
+    chosen = _alert(
+        "keyflip needs Accessibility permission",
         "keyflip reads its keyboard shortcut and sends the copy and paste "
         "keystrokes, so macOS requires Accessibility access.\n\n"
-        "Turn on keyflip under Privacy & Security \u203a Accessibility, then "
-        "open keyflip again."
+        "Turn on keyflip under Privacy & Security \u203a Accessibility. "
+        "keyflip will start by itself as soon as you do - there is no need to "
+        "open it again.",
+        ("Open Accessibility Settings", "Quit"),
     )
-    alert.addButtonWithTitle_("Open Accessibility Settings")
-    alert.addButtonWithTitle_("Quit")
-    if alert.runModal() != NSAlertFirstButtonReturn:
+    if chosen != 0:
         return False
     NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(_ACCESSIBILITY_PANE))
     return True
+
+
+def show_reopen_alert() -> None:
+    """The grant landed but the tap was still refused - only a restart fixes it."""
+    _alert(
+        "Please open keyflip again",
+        "The permission is granted, but macOS is still holding the old answer "
+        "for this copy of keyflip.\n\nQuit keyflip and open it once more and "
+        "it will start normally.",
+        ("OK",),
+    )
 
 
 # --------------------------------------------------------------------------

@@ -17,5 +17,6 @@ Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
 
 Write-Host ""
 Write-Host "Built dist\keyflip.exe"
-Write-Host "  To start it at login, drop a shortcut to it in:"
-Write-Host "  shell:startup   (Win+R, paste that, Enter)"
+Write-Host "  Start at login is a tick in its notification-area menu."
+Write-Host ""
+Write-Host "  iscc packaging\keyflip.iss   builds the installer around it"

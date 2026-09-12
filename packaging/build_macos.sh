@@ -18,6 +18,9 @@ codesign --force --deep --sign - dist/keyflip.app
 echo
 echo "Built dist/keyflip.app"
 echo "  1. Move it to /Applications"
-echo "  2. Open it once, then grant it Accessibility permission:"
+echo "  2. Open it once and grant Accessibility when it asks:"
 echo "     System Settings > Privacy & Security > Accessibility"
-echo "  3. To start it at login: System Settings > General > Login Items > +"
+echo "     (it starts by itself as soon as you do)"
+echo "  3. Start at login is a tick in its menu-bar menu"
+echo
+echo "  ./packaging/build_dmg.sh   wraps it in a drag-to-install disk image"

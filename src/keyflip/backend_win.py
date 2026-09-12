@@ -158,6 +158,14 @@ def has_accessibility(prompt: bool = False) -> bool:
     return True
 
 
+def wait_for_accessibility(timeout_s: float = 300.0, poll_s: float = 0.5) -> bool:
+    return True
+
+
+def can_tap() -> bool:
+    return True
+
+
 # --------------------------------------------------------------------------
 # clipboard
 # --------------------------------------------------------------------------

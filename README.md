@@ -17,40 +17,58 @@ Slack, Notes, the terminal.
 
 ## Install
 
+Download the latest build from the
+[Releases page](https://github.com/Punnawit9285/keyflip/releases). No terminal
+needed.
+
 ### macOS
 
-```sh
-git clone <this repo> keyflip && cd keyflip
-python3 -m venv .venv && .venv/bin/python -m pip install -e .
-./packaging/build_macos.sh
-```
+Open the `.dmg` — `arm64` for Apple silicon, `x86_64` for Intel — and drag
+keyflip to Applications. Open it from there.
 
-Move `dist/keyflip.app` to `/Applications` and open it. The first launch will
-tell you it needs permission and offer to take you straight there:
+On first launch it asks for Accessibility permission and offers to take you
+straight to the right pane:
 
 > System Settings → Privacy & Security → **Accessibility** → turn on **keyflip**
 
-Then open keyflip again. macOS only hands out this permission to an app the
-user has explicitly approved, so there is no way to skip this step — and it is
-the same permission every shortcut utility on macOS needs.
+**keyflip starts by itself the moment you flip that switch** — you do not have
+to open it again. Every shortcut utility on macOS needs this permission; there
+is no way to read a global hotkey without it.
 
-It lives in the menu bar as **ก⇄A**. No Dock icon. To start it at login:
-System Settings → General → Login Items → **+**.
+It then lives in the menu bar as **ก⇄A**, with no Dock icon. Tick **Start at
+login** in its menu and you are done.
 
-You can also run it straight from source with `.venv/bin/keyflip run` — in that
-case the Accessibility permission belongs to your *terminal*, not to keyflip.
+> Because this build is not signed with a paid Apple Developer ID, macOS will
+> say the developer cannot be verified. To get past it once:
+> **right-click keyflip in Applications → Open → Open**. Drag it out of the
+> disk image to Applications *before* opening it — an app run from inside a
+> downloaded `.dmg` is launched from a temporary read-only copy, and an
+> Accessibility grant can never stick to that.
 
 ### Windows
 
-```powershell
-git clone <this repo> keyflip; cd keyflip
-py -m venv .venv; .venv\Scripts\python -m pip install -e .
-.\packaging\build_windows.ps1
+Run the `-setup.exe`. It installs for the current user only, so there is no
+administrator prompt, and it offers a **Start when I sign in** checkbox during
+setup. keyflip needs no permissions at all on Windows.
+
+It sits in the notification area. SmartScreen may warn that the publisher is
+unknown, because the installer is not code-signed: **More info → Run anyway**.
+
+### From source
+
+```sh
+git clone https://github.com/Punnawit9285/keyflip && cd keyflip
+python3 -m venv .venv && .venv/bin/python -m pip install -e .
+.venv/bin/keyflip
 ```
 
-`dist\keyflip.exe` needs no permissions. It sits in the notification area. To
-start it at login, put a shortcut to it in the Startup folder — press `Win+R`,
-type `shell:startup`, and drop the shortcut in.
+Run this way, the Accessibility permission belongs to your *terminal* rather
+than to keyflip. To build the downloadable artifacts yourself:
+
+```sh
+./packaging/build_macos.sh && ./packaging/build_dmg.sh   # macOS
+.\packaging\build_windows.ps1                            # Windows
+```
 
 ---
 
@@ -183,6 +201,11 @@ trade-off the double tap makes:
 | `modifier_release_timeout_ms` | `1000` | how long to wait for your hand to come off |
 | `notify` | `false` | desktop notification on each flip (macOS) |
 
+**Start at login** is a tick in the menu rather than a config key. macOS gets a
+LaunchAgent at `~/Library/LaunchAgents/com.keyflip.agent.plist`; Windows gets a
+`keyflip` value under `HKCU\...\CurrentVersion\Run`. Both are per-user, need no
+administrator rights, and untick cleanly — deleting either by hand also works.
+
 ### About `normalize_thai`
 
 `ggvxgxbh]` converts to `เเอปเปิ้ล` — two SARA E, because that is literally what
@@ -212,8 +235,13 @@ keyflip config
 
 **Nothing happens when I press the shortcut.** Run `keyflip doctor`. On macOS
 the usual cause is that Accessibility permission is attached to the wrong
-binary — if you rebuilt the app, toggle it off and on again in System Settings,
-because macOS pins the grant to the binary's signature.
+binary — macOS pins the grant to the binary's signature, so a rebuilt or
+replaced app needs a fresh one. Remove keyflip from the Accessibility list with
+**−**, add it again with **+**, and if it is still refused:
+
+```sh
+tccutil reset Accessibility com.keyflip.app
+```
 
 **The app bounces and disappears when I open it.** That is the permission check
 failing. It should show an alert explaining so; if you want the detail in

@@ -144,6 +144,43 @@ def _record_startup_problem(message: str) -> None:
         pass
 
 
+def _await_permission(backend) -> bool:
+    """Offer the permission, then wait for it, rather than exiting.
+
+    Quitting the moment the check fails is what makes this confusing: the
+    grant is per-binary, so the user goes to System Settings, switches keyflip
+    on, and comes back to a process that died before they got there.  Nothing
+    says so.  Wait instead, and start the moment the switch is flipped.
+    """
+    print(backend.PERMISSION_HELP, file=sys.stderr)
+    _record_startup_problem(backend.PERMISSION_HELP)
+    if sys.platform != "darwin":
+        return False
+
+    # Launched from Finder there is no stderr to read, so say it on screen.
+    # The alert offers to open the settings pane; "Quit" means quit.
+    if _launched_without_a_console() and not backend.show_permission_alert():
+        return False
+
+    print("keyflip: waiting for Accessibility permission "
+          "(this window can stay open)...", file=sys.stderr)
+    if not backend.wait_for_accessibility():
+        return False
+
+    # Trusted, but the window server can still refuse the tap - and that
+    # failure would happen on the listener thread where nobody would see it.
+    if not backend.can_tap():
+        _record_startup_problem("permission granted but the event tap was refused")
+        print("keyflip: permission granted, but macOS still refused the event "
+              "tap.\nQuit keyflip and open it again.", file=sys.stderr)
+        if _launched_without_a_console():
+            backend.show_reopen_alert()
+        return False
+
+    print("keyflip: permission granted.", file=sys.stderr)
+    return True
+
+
 def _describe_hotkeys(config: Config) -> list[str]:
     rows = []
     for spec, label in ((config.hotkey, "flip (auto-detect)"),
@@ -169,12 +206,7 @@ def cmd_run(args) -> int:
         config.hotkey = args.hotkey
     backend = load_backend()
 
-    if not backend.has_accessibility(prompt=True):
-        print(backend.PERMISSION_HELP, file=sys.stderr)
-        _record_startup_problem(backend.PERMISSION_HELP)
-        # Launched from Finder there is no stderr to read, so say it on screen.
-        if sys.platform == "darwin" and _launched_without_a_console():
-            backend.show_permission_alert()
+    if not backend.has_accessibility(prompt=True) and not _await_permission(backend):
         return 2
 
     daemon = Daemon(config, backend, verbose=args.verbose)

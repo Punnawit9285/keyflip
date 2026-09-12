@@ -22,7 +22,7 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from . import hotkey as hk
+from . import autostart, hotkey as hk
 from .config import Config, config_path
 
 #: NSStatusItem holds only a weak-ish reference; keep ours alive here.
@@ -50,6 +50,7 @@ class KeyflipController(NSObject):
             return None
         self.daemon = daemon
         self.statusRow = None
+        self.loginRow = None
         self.item = None
         return self
 
@@ -76,6 +77,7 @@ class KeyflipController(NSObject):
 
         menu.addItem_(NSMenuItem.separatorItem())
         _action_item(menu, "Flip clipboard now", self, "flipClipboard:")
+        self.loginRow = _action_item(menu, "Start at login", self, "toggleLogin:")
         _action_item(menu, "Open config file", self, "openConfig:")
         menu.addItem_(NSMenuItem.separatorItem())
         _action_item(menu, "Quit keyflip", self, "quitApp:", "q")
@@ -84,6 +86,9 @@ class KeyflipController(NSObject):
 
     # -- NSMenuDelegate ----------------------------------------------------
     def menuWillOpen_(self, menu):
+        # Read the tick fresh: the user may have removed the login item in
+        # System Settings since the menu was built.
+        self.loginRow.setState_(1 if autostart.is_enabled() else 0)
         count = self.daemon.flips
         if not count:
             self.statusRow.setTitle_("No flips yet")
@@ -97,6 +102,12 @@ class KeyflipController(NSObject):
     def flipClipboard_(self, sender):
         self.daemon.flip_clipboard_in_place()
 
+    def toggleLogin_(self, sender):
+        try:
+            autostart.set_enabled(not autostart.is_enabled())
+        except autostart.AutostartError as exc:
+            _alert_failure(str(exc))
+
     def openConfig_(self, sender):
         path = config_path()
         if not path.exists():
@@ -106,6 +117,16 @@ class KeyflipController(NSObject):
     def quitApp_(self, sender):
         self.daemon.stop()
         NSApplication.sharedApplication().terminate_(self)
+
+
+def _alert_failure(message: str) -> None:
+    from AppKit import NSAlert
+
+    alert = NSAlert.alloc().init()
+    alert.setMessageText_("keyflip could not change the login item")
+    alert.setInformativeText_(message)
+    alert.addButtonWithTitle_("OK")
+    alert.runModal()
 
 
 def run_tray(daemon) -> None:

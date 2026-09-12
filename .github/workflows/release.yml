@@ -1,0 +1,143 @@
+# Build the downloadable artifacts and attach them to a GitHub Release.
+#
+# Push a tag to cut a release:   git tag v1.0.1 && git push origin v1.0.1
+# Or run it by hand from the Actions tab to check the builds without releasing.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+
+  macos:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple silicon and Intel need separate builds: PyInstaller freezes
+          # the interpreter and every .so it pulls in, so the bundle is only
+          # ever for the architecture it was built on.
+          - runner: macos-14
+            arch: arm64
+          - runner: macos-13
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Work out the version
+        id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            sed -n 's/^__version__ = "\(.*\)"/version=\1/p' src/keyflip/app.py \
+              >> "$GITHUB_OUTPUT"
+          fi
+      - run: python -m pip install -e . pyinstaller
+      - run: ./packaging/build_macos.sh
+        env:
+          PYTHON: python
+      - run: ./packaging/build_dmg.sh "${{ steps.v.outputs.version }}" "${{ matrix.arch }}"
+      - name: Check the app actually runs
+        run: |
+          dist/keyflip.app/Contents/MacOS/keyflip --version
+          dist/keyflip.app/Contents/MacOS/keyflip hotkey
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg-${{ matrix.arch }}
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Work out the version
+        id: v
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            sed -n 's/^__version__ = "\(.*\)"/version=\1/p' src/keyflip/app.py \
+              >> "$GITHUB_OUTPUT"
+          fi
+      - run: python -m pip install -e . pyinstaller
+      - run: .\packaging\build_windows.ps1
+        env:
+          PYTHON: python
+      - name: Check the exe actually runs
+        run: .\dist\keyflip.exe --version
+      - name: Make sure Inno Setup is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+      - name: Build the installer
+        run: iscc /DMyAppVersion=${{ steps.v.outputs.version }} packaging\keyflip.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup
+          path: dist/*setup.exe
+          if-no-files-found: error
+
+  release:
+    needs: [macos, windows]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - run: ls -la artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            **macOS** — download the `.dmg` for your Mac (`arm64` for Apple
+            silicon, `x86_64` for Intel), open it, and drag keyflip to
+            Applications. On first launch it will ask for Accessibility
+            permission and start by itself once you grant it.
+
+            macOS will say the developer cannot be verified, because this
+            build is not signed with an Apple Developer ID. To open it anyway:
+            **right-click keyflip in Applications → Open → Open**. You only
+            need to do that once.
+
+            **Windows** — download and run the `-setup.exe`. No administrator
+            rights and no permissions needed. SmartScreen may warn that the
+            publisher is unknown: **More info → Run anyway**.
+
+            Then select text that came out in the wrong layout and **tap the
+            right Shift twice**.

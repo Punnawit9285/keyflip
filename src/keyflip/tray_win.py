@@ -15,7 +15,7 @@ import os
 import pystray
 from PIL import Image, ImageDraw
 
-from . import hotkey as hk
+from . import autostart, hotkey as hk
 from .config import Config, config_path
 
 _BG = (32, 33, 36, 255)
@@ -65,6 +65,17 @@ def run_tray(daemon) -> None:
         daemon.stop()
         icon.stop()
 
+    def login_checked(_item) -> bool:
+        # Queried every time the menu opens, so an entry removed elsewhere
+        # (Task Manager's Startup tab) shows up unticked here.
+        return autostart.is_enabled()
+
+    def on_login(icon, item):
+        try:
+            autostart.set_enabled(not autostart.is_enabled())
+        except autostart.AutostartError as exc:
+            icon.notify(str(exc), "keyflip")
+
     cfg = daemon.config
     rows = [pystray.MenuItem(status_text, None, enabled=False),
             pystray.Menu.SEPARATOR]
@@ -77,6 +88,7 @@ def run_tray(daemon) -> None:
     rows += [
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Flip clipboard now", on_flip, default=True),
+        pystray.MenuItem("Start at login", on_login, checked=login_checked),
         pystray.MenuItem("Open config file", on_config),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quit keyflip", on_quit),
