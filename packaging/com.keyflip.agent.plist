@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Optional: run keyflip from source at login, without building the .app.
+  Install with
+      cp packaging/com.keyflip.agent.plist ~/Library/LaunchAgents/
+      launchctl load ~/Library/LaunchAgents/com.keyflip.agent.plist
+  Edit the two paths below first.  Accessibility permission has to be granted
+  to the python binary named in ProgramArguments, not to keyflip itself.
+  Prefer the built .app plus a Login Item; this is the from-source fallback.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.keyflip.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/CHANGE/ME/keyflip/.venv/bin/python</string>
+        <string>-m</string>
+        <string>keyflip</string>
+        <string>run</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+    <key>StandardErrorPath</key>
+    <string>/tmp/keyflip.err.log</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/keyflip.out.log</string>
+</dict>
+</plist>
