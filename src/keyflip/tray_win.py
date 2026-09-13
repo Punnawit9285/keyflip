@@ -43,7 +43,7 @@ def _icon_image(size: int = 64) -> Image.Image:
     return img
 
 
-def run_tray(daemon) -> None:
+def run_tray(daemon, announce: str | None = None) -> None:
     def status_text(_item=None) -> str:
         if not daemon.flips:
             return "No flips yet"
@@ -95,4 +95,12 @@ def run_tray(daemon) -> None:
     ]
 
     icon = pystray.Icon("keyflip", _icon_image(), "keyflip", pystray.Menu(*rows))
-    icon.run()
+
+    def setup(icon):
+        # pystray only shows the icon by itself when no setup callback is
+        # given; once there is one, that becomes our job.
+        icon.visible = True
+        if announce:
+            icon.notify(announce, "keyflip")
+
+    icon.run(setup=setup)

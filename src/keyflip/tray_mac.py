@@ -10,6 +10,7 @@ so plain helpers stay at module level where PyObjC will not try to bridge them.
 from __future__ import annotations
 
 import subprocess
+import threading
 
 import objc
 from AppKit import (
@@ -129,7 +130,11 @@ def _alert_failure(message: str) -> None:
     alert.runModal()
 
 
-def run_tray(daemon) -> None:
+def run_tray(daemon, announce: str | None = None) -> None:
+    if announce:
+        # osascript can take a moment; never hold up the menu bar item for it.
+        threading.Thread(target=daemon.backend.notify, args=("keyflip", announce),
+                         daemon=True).start()
     app = NSApplication.sharedApplication()
     # Accessory: menu-bar presence, no Dock icon, no menu bar of its own.
     app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)

@@ -92,7 +92,14 @@ jobs:
         env:
           PYTHON: python
       - name: Check the exe actually runs
-        run: .\dist\keyflip.exe --version
+        shell: pwsh
+        run: |
+          # A windowed exe does not block the shell, so wait on it explicitly -
+          # otherwise this step passes without ever learning whether it started.
+          foreach ($a in @('--version', 'hotkey')) {
+            $p = Start-Process .\dist\keyflip.exe -ArgumentList $a -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "keyflip.exe $a exited with $($p.ExitCode)" }
+          }
       - name: Make sure Inno Setup is available
         shell: pwsh
         run: |
@@ -107,6 +114,32 @@ jobs:
           name: windows-setup
           path: dist/*setup.exe
           if-no-files-found: error
+      # After the upload on purpose: a failure here still leaves the installer
+      # downloadable for inspection, but fails the job so nothing is released.
+      - name: Check the installer installs and uninstalls cleanly
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*setup.exe | Select-Object -First 1).FullName
+          $p = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+
+          $dir = "$env:LOCALAPPDATA\Programs\keyflip"
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          if (-not (Test-Path "$dir\keyflip.exe")) { throw "keyflip.exe was not installed to $dir" }
+          $login = (Get-ItemProperty $run -Name keyflip -ErrorAction SilentlyContinue).keyflip
+          if (-not $login) { throw 'a fresh install should switch on start at login' }
+          Write-Host "installed to $dir"
+          Write-Host "login item:  $login"
+
+          Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait
+          # The uninstaller hands over to a copy of itself in %TEMP% and returns
+          # early, so wait for the effect rather than for the process.
+          for ($i = 0; $i -lt 60 -and (Test-Path "$dir\keyflip.exe"); $i++) { Start-Sleep -Milliseconds 500 }
+          if (Test-Path "$dir\keyflip.exe") { throw 'uninstall left keyflip.exe behind' }
+          if (Get-ItemProperty $run -Name keyflip -ErrorAction SilentlyContinue) {
+            throw 'uninstall left the login item behind'
+          }
+          Write-Host 'uninstalled cleanly'
 
   release:
     needs: [macos, windows]
@@ -135,9 +168,12 @@ jobs:
             **right-click keyflip in Applications → Open → Open**. You only
             need to do that once.
 
-            **Windows** — download and run the `-setup.exe`. No administrator
-            rights and no permissions needed. SmartScreen may warn that the
-            publisher is unknown: **More info → Run anyway**.
+            **Windows** — download the `-setup.exe`, open it, and click
+            **Install**. That is the whole installation: no administrator
+            rights, no questions, and keyflip starts straight away and at every
+            sign-in (untick **Start at login** in the tray menu to stop that).
+            SmartScreen may warn that the publisher is unknown, because the
+            installer is not code-signed: **More info → Run anyway**.
 
             Then select text that came out in the wrong layout and **tap the
             right Shift twice**.

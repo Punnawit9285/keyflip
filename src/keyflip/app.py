@@ -191,6 +191,15 @@ def _describe_hotkeys(config: Config) -> list[str]:
     return rows
 
 
+def _welcome_message(config: Config) -> str:
+    """What a fresh install says, so a setup window that just closes is not a mystery."""
+    if not config.hotkey:
+        return "keyflip is running."
+    key = hk.parse(config.hotkey).pretty(sys.platform)
+    return (f"keyflip is running. Select text typed in the wrong layout, "
+            f"then press {key} to flip it.")
+
+
 def cmd_run(args) -> int:
     # The daemon's output is usually redirected to a log (launchd, a Startup
     # shortcut, a background shell), where block buffering would hide every
@@ -224,7 +233,7 @@ def cmd_run(args) -> int:
     try:
         if use_tray:
             daemon.run_in_thread()
-            run_tray(daemon)
+            run_tray(daemon, announce=_welcome_message(config) if args.welcome else None)
         else:
             print("Press Ctrl+C to quit.")
             daemon.run_blocking()
@@ -337,6 +346,8 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="listen for the hotkey (default)")
     run.add_argument("--hotkey", help="override the configured shortcut for this run")
     run.add_argument("--no-tray", action="store_true", help="stay in the console")
+    run.add_argument("--welcome", action="store_true",
+                     help="announce that keyflip is running (the installer uses this)")
     run.add_argument("-v", "--verbose", action="store_true", help="log every flip")
     run.set_defaults(func=cmd_run)
 

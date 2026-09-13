@@ -47,12 +47,18 @@ login** in its menu and you are done.
 
 ### Windows
 
-Run the `-setup.exe`. It installs for the current user only, so there is no
-administrator prompt, and it offers a **Start when I sign in** checkbox during
-setup. keyflip needs no permissions at all on Windows.
+Open `keyflip-<version>-setup.exe` and click **Install**. That is the whole
+installation — one click. There is no administrator prompt (it installs for
+the current user only), no questions, and keyflip needs no permissions at all
+on Windows.
 
-It sits in the notification area. SmartScreen may warn that the publisher is
-unknown, because the installer is not code-signed: **More info → Run anyway**.
+It starts as soon as setup closes, says so with a notification, and from then
+on starts at every sign-in. Untick **Start at login** in its tray menu to stop
+that; upgrading later will not switch it back on. Uninstall from **Settings →
+Apps** like anything else.
+
+SmartScreen may warn that the publisher is unknown, because the installer is
+not code-signed: **More info → Run anyway**.
 
 ### From source
 

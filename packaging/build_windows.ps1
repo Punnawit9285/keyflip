@@ -7,11 +7,14 @@ $py = if ($env:PYTHON) { $env:PYTHON } else { ".venv\Scripts\python.exe" }
 Remove-Item -Recurse -Force build, dist -ErrorAction SilentlyContinue
 
 # --noconsole: no black window.  --onefile: one exe to drop in Startup.
+# pystray picks its backend with importlib at runtime, which PyInstaller cannot
+# follow - without naming _win32 here the exe starts with no tray icon at all.
 & $py -m PyInstaller --noconfirm --clean `
     --onefile --noconsole --name keyflip `
     --paths src `
     --hidden-import keyflip.backend_win `
     --hidden-import keyflip.tray_win `
+    --hidden-import pystray._win32 `
     --exclude-module tkinter --exclude-module pytest `
     packaging\launcher.py
 
