@@ -35,9 +35,12 @@ jobs:
           # Apple silicon and Intel need separate builds: PyInstaller freezes
           # the interpreter and every .so it pulls in, so the bundle is only
           # ever for the architecture it was built on.
-          - runner: macos-14
+          # Pin versioned labels rather than macos-latest, so a release is
+          # never quietly built on a new OS; bump both together when one of
+          # them is deprecated (macos-13 was retired from under this file).
+          - runner: macos-15
             arch: arm64
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x86_64
     runs-on: ${{ matrix.runner }}
     steps:
