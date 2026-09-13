@@ -121,9 +121,14 @@ jobs:
       # downloadable for inspection, but fails the job so nothing is released.
       - name: Check the installer installs and uninstalls cleanly
         shell: pwsh
+        timeout-minutes: 5
         run: |
           $setup = (Get-ChildItem dist\*setup.exe | Select-Object -First 1).FullName
-          $p = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          # Not -Wait: that also waits for every descendant, and the installer's
+          # whole job is to leave keyflip running - so it would never return.
+          $p = Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru
+          $null = $p.Handle   # without touching this first, ExitCode reads back empty
+          $p.WaitForExit()
           if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
 
           $dir = "$env:LOCALAPPDATA\Programs\keyflip"
