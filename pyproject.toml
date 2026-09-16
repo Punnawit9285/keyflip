@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "keyflip"
-version = "1.0.0"
+version = "1.0.1"
 description = "Flip a selection between Thai Kedmanee and US QWERTY with a global shortcut"
 readme = "README.md"
 requires-python = ">=3.10"

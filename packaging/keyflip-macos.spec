@@ -30,12 +30,12 @@ app = BUNDLE(
     coll,
     name="keyflip.app",
     bundle_identifier="com.keyflip.app",
-    version="1.0.0",
+    version="1.0.1",
     info_plist={
         "LSUIElement": True,                 # menu-bar only, no Dock icon
         "CFBundleName": "keyflip",
         "CFBundleDisplayName": "keyflip",
-        "CFBundleShortVersionString": "1.0.0",
+        "CFBundleShortVersionString": "1.0.1",
         "NSHumanReadableCopyright": "MIT",
         "LSMinimumSystemVersion": "11.0",
     },

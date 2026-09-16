@@ -300,10 +300,9 @@ class HotkeyListener:
         detector, handler, device_mask = entry
         now = time.monotonic()
         if flags & device_mask:
-            if detector.press(now):
-                self._fire(handler)
-        else:
-            detector.release(now)
+            detector.press(now)
+        elif detector.release(now):
+            self._fire(handler)
 
     def _fire(self, handler: Callable[[], None]) -> None:
         if self._busy.is_set():

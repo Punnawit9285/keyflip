@@ -66,21 +66,21 @@ def test_the_window_comes_from_the_caller():
 # --- the detector ---------------------------------------------------------
 def tap(det, at, hold=0.05):
     """One press-and-release, returning whether the shortcut fired."""
-    fired = det.press(at)
-    det.release(at + hold)
-    return fired
+    det.press(at)
+    return det.release(at + hold)
 
 
-def test_two_quick_taps_fire():
+def test_two_quick_taps_fire_when_the_second_is_released():
     det = hk.TapDetector(400)
     assert tap(det, 1.0) is False
-    assert det.press(1.2) is True, "the second tap fires on the way down"
+    det.press(1.2)
+    assert det.release(1.25) is True
 
 
 def test_a_slow_second_tap_does_not_fire():
     det = hk.TapDetector(400)
     tap(det, 1.0)
-    assert det.press(1.9) is False
+    assert tap(det, 1.9) is False
 
 
 def test_typing_capitals_does_not_fire():
@@ -88,26 +88,44 @@ def test_typing_capitals_does_not_fire():
     det = hk.TapDetector(400)
     det.press(1.0)
     det.interrupted()          # the "H"
-    det.release(1.15)
-    assert det.press(1.3) is False
+    assert det.release(1.15) is False
+    det.press(1.3)
     det.interrupted()          # the "W"
-    det.release(1.45)
-    assert det.press(1.6) is False
+    assert det.release(1.45) is False
+
+
+def test_a_tap_then_a_capital_does_not_fire():
+    # Firing on the second key-down would have flipped here, mid-word.
+    det = hk.TapDetector(400)
+    tap(det, 1.0)
+    det.press(1.2)
+    det.interrupted()          # shift is being used to type a capital
+    assert det.release(1.3) is False
 
 
 def test_holding_the_key_is_not_a_tap():
     det = hk.TapDetector(400)
     det.press(1.0)
-    det.release(2.0)           # held for a second
-    assert det.press(2.1) is False
+    assert det.release(2.0) is False       # held for a second
+    assert tap(det, 2.1) is False
+
+
+def test_holding_the_second_tap_is_not_a_tap():
+    det = hk.TapDetector(400)
+    tap(det, 1.0)
+    det.press(1.2)
+    assert det.release(2.0) is False
 
 
 def test_auto_repeat_while_held_is_not_a_second_tap():
     det = hk.TapDetector(400)
-    tap(det, 1.0)
-    assert det.press(1.2) is True
-    for repeat in (1.3, 1.4, 1.5):
-        assert det.press(repeat) is False, "Windows repeats a held modifier"
+    det.press(1.0)
+    det.press(1.05)            # Windows repeats a held modifier
+    assert det.release(1.1) is False, "repeats of one press are still one tap"
+    det.press(1.2)
+    for repeat in (1.25, 1.3, 1.35):
+        det.press(repeat)
+    assert det.release(1.4) is True, "repeats must not restart the hold timer"
 
 
 def test_three_taps_are_one_shortcut_not_two():
@@ -124,4 +142,12 @@ def test_the_gesture_still_works_after_being_interrupted():
     det.interrupted()
     det.release(1.1)
     assert tap(det, 1.2) is False
-    assert det.press(1.4) is True
+    assert tap(det, 1.4) is True
+
+
+def test_a_release_with_no_press_is_ignored():
+    # Shift was already down when keyflip started: only its key-up arrives.
+    det = hk.TapDetector(400)
+    assert det.release(1.0) is False
+    assert tap(det, 1.2) is False
+    assert tap(det, 1.4) is True

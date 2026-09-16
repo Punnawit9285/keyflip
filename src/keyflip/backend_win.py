@@ -381,10 +381,11 @@ class HotkeyListener:
         detector, handler = entry
         now = time.monotonic()
         if down:
-            if detector.press(now):
-                self._fire(handler)
-        else:
-            detector.release(now)
+            detector.press(now)
+        elif detector.release(now):
+            # On the key-up, not the second key-down: see TapDetector.  Fired
+            # while shift is held, the copy lands as Ctrl+Shift+C.
+            self._fire(handler)
 
     def _fire(self, handler: Callable[[], None]) -> None:
         if self._busy.is_set():

@@ -163,10 +163,24 @@ def test_typing_a_capital_between_the_taps_does_not_fire(taps):
 def test_the_right_shift_going_up_is_seen_while_the_left_is_held(taps):
     # The plain shift flag stays set, so only the per-side bit can tell us.
     both = 0x0002 | RSHIFT_DOWN
-    flags_changed(taps, both)
-    flags_changed(taps, 0x0002 | Quartz.kCGEventFlagMaskShift)   # right released
-    flags_changed(taps, both)
+    left_only = 0x0002 | Quartz.kCGEventFlagMaskShift
+    for _ in range(2):
+        flags_changed(taps, both)        # right down, left still held
+        flags_changed(taps, left_only)   # right up, left still held
     assert settle(taps, 1) == [1]
+
+
+def test_it_fires_only_after_right_shift_is_let_go(taps, monkeypatch):
+    # The shortcut goes on to send Cmd+C; sent with shift held it would
+    # arrive as Cmd+Shift+C.  Fire on the key-up, never on the key-down.
+    dispatched = []
+    monkeypatch.setattr(taps, "_fire", dispatched.append)
+    flags_changed(taps, RSHIFT_DOWN)
+    flags_changed(taps, 0)
+    flags_changed(taps, RSHIFT_DOWN)
+    assert dispatched == [], "must not fire while the second tap is still held"
+    flags_changed(taps, 0)
+    assert len(dispatched) == 1
 
 
 def test_a_chord_listener_does_not_ask_for_modifier_events(listener):

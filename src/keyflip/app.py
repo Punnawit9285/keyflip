@@ -11,7 +11,7 @@ from .config import Config, config_dir, config_path
 from .core import FLIPPED, Flipper
 from .layout import EN2TH, TH2EN, convert, detect_direction, normalize_thai
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 def load_backend():

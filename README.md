@@ -99,7 +99,8 @@ without going off mid-sentence. A tap only counts when the key was pressed
 
 | What you do | Does it fire? |
 | --- | --- |
-| Tap right shift, tap it again within 400 ms | **yes** |
+| Tap right shift, tap it again within 400 ms | **yes** — as you let go of the second tap |
+| Tap right shift, then hold it to type a capital | no: the second press was used as a modifier |
 | Type `Hello World` — right shift twice, with a letter each time | no: a key pressed while shift was held cancels the tap |
 | Hold right shift and let go | no: a tap has to be short, not held |
 | Tap the **left** shift twice | no: the two shifts are separate keys, so the other one stays free |
@@ -107,6 +108,11 @@ without going off mid-sentence. A tap only counts when the key was pressed
 | Tap three times | one flip, not two |
 
 There are tests for every row of that table.
+
+It fires on the *release* of the second tap, not the press, and that matters:
+the first thing keyflip does is send Copy, and a Copy sent while shift is still
+held arrives as Ctrl+Shift+C — a cloze in Anki, the element inspector in
+Chrome.
 
 Two more things keep it out of the way:
 

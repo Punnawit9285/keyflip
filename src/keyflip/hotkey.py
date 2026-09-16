@@ -210,35 +210,44 @@ class TapDetector:
     World" presses the same shift twice within a few hundred milliseconds, so
     a tap only counts when the key went down and up with nothing in between
     and without being held - i.e. when it was pressed for its own sake.
+
+    It fires when the second tap is *released*, never while it is held.  What
+    the shortcut does next is send Ctrl+C, and a copy sent with shift still
+    physically down reaches the app as Ctrl+Shift+C - a cloze in Anki, the
+    element inspector in Chrome.  Waiting for the modifiers to lift does not
+    cover it: a Windows keyboard hook runs before the key state is updated, so
+    at the second key-down shift does not yet read as held, and the wait ends
+    at once.  Fired on the key-up, a stale key state only means waiting a few
+    milliseconds longer.
     """
 
-    __slots__ = ("window", "_down_at", "_last_tap", "_used", "_fired")
+    __slots__ = ("window", "_down_at", "_last_tap", "_used")
 
     def __init__(self, window_ms: int = DEFAULT_DOUBLE_TAP_MS):
         self.window = window_ms / 1000
         self._down_at = 0.0    # when the key went down; 0 while it is up
-        self._last_tap = 0.0   # when the previous clean tap completed
+        self._last_tap = 0.0   # when the previous clean tap was released
         self._used = False     # another key was pressed while this one was held
-        self._fired = False    # this press already triggered the shortcut
 
-    def press(self, now: float) -> bool:
-        """Key down.  True when this is the second tap and the shortcut fires."""
+    def press(self, now: float) -> None:
+        """Key down."""
         if self._down_at:
-            return False       # auto-repeat while held is not a new tap
+            return             # auto-repeat while held is not a new tap
         self._down_at = now
         self._used = False
-        if self._last_tap and now - self._last_tap <= self.window:
-            self._last_tap = 0.0
-            self._fired = True
-            return True
-        return False
 
-    def release(self, now: float) -> None:
+    def release(self, now: float) -> bool:
+        """Key up.  True when this completes a double tap and the shortcut fires."""
         down_at, self._down_at = self._down_at, 0.0
-        clean = down_at and not self._used and now - down_at <= self.window
-        # After firing, start over: three taps are one shortcut, not two.
-        self._last_tap = now if clean and not self._fired else 0.0
-        self._fired = False
+        clean = bool(down_at) and not self._used and now - down_at <= self.window
+        if not clean:
+            self._last_tap = 0.0
+            return False
+        if self._last_tap and down_at - self._last_tap <= self.window:
+            self._last_tap = 0.0   # start over: three taps are one shortcut, not two
+            return True
+        self._last_tap = now
+        return False
 
     def interrupted(self) -> None:
         """Another key was pressed: this is typing, not a deliberate tap."""
