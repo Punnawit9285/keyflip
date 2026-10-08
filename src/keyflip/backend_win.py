@@ -45,6 +45,10 @@ WM_KEYDOWN, WM_KEYUP = 0x0100, 0x0101
 WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0104, 0x0105
 _KEY_DOWN_MESSAGES = (WM_KEYDOWN, WM_SYSKEYDOWN)
 LLKHF_INJECTED = 0x10
+WM_INPUTLANGCHANGEREQUEST = 0x0050
+
+#: Primary language ids - the low ten bits of a keyboard layout's HKL.
+_LANG_IDS = {"th": 0x1E, "en": 0x09}
 
 #: Stamped into dwExtraInfo so we can recognise our own synthetic input.
 _SYNTHETIC_MARK = 0x4B46  # "KF"
@@ -141,6 +145,18 @@ def _dlls():
         _user32.CallNextHookEx.restype = ctypes.c_ssize_t
         _kernel32.GetModuleHandleW.argtypes = (ctypes.c_wchar_p,)
         _kernel32.GetModuleHandleW.restype = ctypes.c_void_p
+        # An HKL is a handle: pointer-wide, so it must never pass through the
+        # default 32-bit int conversion.
+        _user32.GetForegroundWindow.restype = ctypes.c_void_p
+        _user32.GetWindowThreadProcessId.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+        _user32.GetWindowThreadProcessId.restype = ctypes.c_uint32
+        _user32.GetKeyboardLayout.argtypes = (ctypes.c_uint32,)
+        _user32.GetKeyboardLayout.restype = ctypes.c_void_p
+        _user32.GetKeyboardLayoutList.argtypes = (ctypes.c_int,
+                                                  ctypes.POINTER(ctypes.c_void_p))
+        _user32.GetKeyboardLayoutList.restype = ctypes.c_int
+        _user32.PostMessageW.argtypes = (ctypes.c_void_p, ctypes.c_uint32,
+                                         ctypes.c_size_t, ctypes.c_void_p)
     return _user32, _kernel32
 
 
@@ -273,6 +289,39 @@ def wait_modifiers_released(timeout_ms: int) -> bool:
             return True
         time.sleep(0.01)
     return False
+
+
+# --------------------------------------------------------------------------
+# keyboard layout
+# --------------------------------------------------------------------------
+def _pick_layout(layouts, language: str) -> int | None:
+    """The first of ``layouts`` (HKLs) that types ``language``, if any."""
+    want = _LANG_IDS[language]
+    return next((hkl for hkl in layouts if hkl and hkl & 0x3FF == want), None)
+
+
+def select_language(language: str) -> bool:
+    """Put the focused app's keyboard on a layout for ``language`` ("th"/"en").
+
+    The input language belongs to the app being typed into, not to us, so
+    this asks its window to change - the same request the language bar
+    makes.  True when the app is on such a layout or has been asked to move
+    to one; False when none is installed, and then nothing changes.
+    """
+    user32, _ = _dlls()
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return False
+    current = user32.GetKeyboardLayout(user32.GetWindowThreadProcessId(hwnd, None))
+    if _pick_layout([current], language):
+        return True
+    count = user32.GetKeyboardLayoutList(0, None)
+    installed = (ctypes.c_void_p * count)()
+    count = user32.GetKeyboardLayoutList(count, installed)
+    hkl = _pick_layout(installed[:count], language)
+    if hkl is None:
+        return False
+    return bool(user32.PostMessageW(hwnd, WM_INPUTLANGCHANGEREQUEST, 0, hkl))
 
 
 def notify(title: str, message: str) -> None:

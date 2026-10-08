@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 
 from .config import Config
-from .layout import convert, detect_direction, normalize_thai
+from .layout import OUTPUT_LANGUAGE, convert, detect_direction, normalize_thai
 
 # Outcomes, in the order they can occur.
 BUSY_MODIFIERS = "modifiers-held"
@@ -30,6 +30,8 @@ class FlipResult:
     before: str = ""
     after: str = ""
     direction: str = ""
+    #: The language the keyboard was moved to after the flip, if it was.
+    keyboard: str = ""
 
     @property
     def ok(self) -> bool:
@@ -42,7 +44,8 @@ class FlipResult:
             NOT_TEXT: "the selection is not text",
             NO_EVIDENCE: "no letters in the selection - nothing to infer from",
             UNCHANGED: "nothing on either layout would change",
-            FLIPPED: f"{self.before!r} -> {self.after!r}",
+            FLIPPED: f"{self.before!r} -> {self.after!r}"
+                     + (f"  (keyboard: {self.keyboard})" if self.keyboard else ""),
         }[self.status]
 
 
@@ -92,11 +95,16 @@ class Flipper:
         be.clipboard_set(flipped)
         be.send_paste()
 
+        # Whatever is typed next belongs in the language just fixed, so move
+        # the keyboard over too.  Now rather than after the settle wait below:
+        # people start typing again the moment they see the text change.
+        keyboard = self._switch_keyboard(chosen) if cfg.switch_layout else ""
+
         # Give the target app time to actually read the clipboard before we
         # yank it back; a restore that lands too early pastes the old text.
         time.sleep(cfg.paste_settle_ms / 1000)
         self._restore(saved)
-        return FlipResult(FLIPPED, selection, flipped, chosen)
+        return FlipResult(FLIPPED, selection, flipped, chosen, keyboard)
 
     # -- helpers -----------------------------------------------------------
     def _await_clipboard(self, serial: int, timeout_ms: int) -> bool:
@@ -111,6 +119,16 @@ class Flipper:
                 return True
             time.sleep(0.015)
         return False
+
+    def _switch_keyboard(self, direction: str) -> str:
+        """Move the keyboard to the flipped text's language; returns it, or ""."""
+        language = OUTPUT_LANGUAGE[direction]
+        try:
+            return language if self.backend.select_language(language) else ""
+        except Exception:
+            # The text is already fixed.  A keyboard left where it was is not
+            # worth skipping the clipboard restore over.
+            return ""
 
     def _restore(self, saved: str | None) -> None:
         if not self.config.restore_clipboard or saved is None:

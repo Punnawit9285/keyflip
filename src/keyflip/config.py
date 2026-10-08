@@ -42,6 +42,8 @@ class Config:
     #: For double-tap shortcuts: how long the second tap has to arrive.
     double_tap_ms: int = 400
 
+    #: After a flip, move the keyboard to the language the text is now in.
+    switch_layout: bool = True
     #: Fold a typed "SARA E SARA E" into a single SARA AE after converting.
     normalize_thai: bool = False
     #: Put the user's own clipboard back once the paste has landed.

@@ -15,7 +15,8 @@ class FakeBackend:
     """Stands in for macOS/Windows: a clipboard with a change counter."""
 
     def __init__(self, selection=None, clipboard=None, *,
-                 answers_copy=True, modifiers_stuck=False):
+                 answers_copy=True, modifiers_stuck=False,
+                 layouts=("en", "th")):
         self.clipboard = clipboard
         self.selection = selection
         self.serial = 100
@@ -23,6 +24,8 @@ class FakeBackend:
         self.modifiers_stuck = modifiers_stuck
         self.pasted = []          # what the "app" received
         self.copies = 0
+        self.layouts = layouts    # the keyboard layouts the user has enabled
+        self.keyboard = []        # every language the keyboard was moved to
 
     def wait_modifiers_released(self, timeout_ms):
         return not self.modifiers_stuck
@@ -45,6 +48,12 @@ class FakeBackend:
 
     def send_paste(self):
         self.pasted.append(self.clipboard)
+
+    def select_language(self, language):
+        if language not in self.layouts:
+            return False
+        self.keyboard.append(language)
+        return True
 
 
 def flip(backend, config=None, direction=None):
@@ -153,3 +162,55 @@ def test_describe_covers_every_status():
     for status in (BUSY_MODIFIERS, NO_SELECTION, NOT_TEXT, UNCHANGED, FLIPPED):
         from keyflip.core import FlipResult
         assert FlipResult(status, "a", "b").describe()
+
+
+# --- the keyboard follows the flip ---------------------------------------
+def test_flipping_into_english_moves_the_keyboard_to_english():
+    be = FakeBackend(selection="รสนอำันีแสฟีกำ")
+    res = flip(be)
+    assert be.keyboard == ["en"]
+    assert res.keyboard == "en"
+
+
+def test_flipping_into_thai_moves_the_keyboard_to_thai():
+    be = FakeBackend(selection="l;ylfu8iy[")
+    assert flip(be).keyboard == "th"
+    assert be.keyboard == ["th"]
+
+
+def test_a_one_way_shortcut_moves_the_keyboard_its_own_way():
+    be = FakeBackend(selection="iloveyouclaude")
+    flip(be, direction="en2th")
+    assert be.keyboard == ["th"]
+
+
+def test_the_keyboard_stays_put_when_nothing_was_flipped():
+    for be in (FakeBackend(selection=None),                 # nothing selected
+               FakeBackend(selection="2026"),               # no evidence
+               FakeBackend(selection="x", modifiers_stuck=True)):
+        assert not flip(be, Config(paste_settle_ms=0, copy_timeout_ms=40)).ok
+        assert be.keyboard == []
+
+
+def test_switching_the_keyboard_can_be_turned_off():
+    be = FakeBackend(selection="l;ylfu8iy[")
+    res = flip(be, Config(paste_settle_ms=0, switch_layout=False))
+    assert res.ok and be.keyboard == [] and res.keyboard == ""
+
+
+def test_no_thai_layout_installed_still_flips():
+    be = FakeBackend(selection="l;ylfu8iy[", clipboard="mine", layouts=("en",))
+    res = flip(be)
+    assert res.ok and res.keyboard == ""
+    assert be.clipboard == "mine"
+
+
+def test_a_failing_switch_still_puts_the_clipboard_back():
+    be = FakeBackend(selection="l;ylfu8iy[", clipboard="my earlier copy")
+
+    def broken(language):
+        raise OSError("the window went away")
+    be.select_language = broken
+    res = flip(be)
+    assert res.ok and res.after == "สวัสดีครับ" and res.keyboard == ""
+    assert be.clipboard == "my earlier copy"

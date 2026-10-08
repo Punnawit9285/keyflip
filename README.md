@@ -1,8 +1,9 @@
 # keyflip
 
 Select text that came out in the wrong keyboard layout, press one shortcut, and
-it is retyped correctly in place. Thai Kedmanee ⇄ US QWERTY, on macOS and
-Windows.
+it is retyped correctly in place — and your keyboard switches over with it, so
+whatever you type next comes out right too. Thai Kedmanee ⇄ US QWERTY, on macOS
+and Windows.
 
 ```
 รสนอำันีแสฟีกำ   →  iloveyouclaude
@@ -156,7 +157,10 @@ modes handled:
 3. Watch the clipboard's change counter. If it never changes, nothing was
    selected — stop, touch nothing.
 4. Detect the direction, convert, send **Paste**.
-5. Put your clipboard back.
+5. Switch the keyboard to the language the text is now in — Thai after a flip
+   into Thai, English after a flip into English — so you can carry on typing.
+   If it is already there, it is left alone.
+6. Put your clipboard back.
 
 It never pastes when the text would not change, and it declines when there is
 nothing to infer a direction from: a selected `2026` or `+66 81-234-5678` is
@@ -206,6 +210,7 @@ trade-off the double tap makes:
 | `hotkey_to_thai` | `""` | optional one-way shortcut |
 | `hotkey_to_english` | `""` | optional one-way shortcut |
 | `double_tap_ms` | `400` | how long the second tap has to arrive |
+| `switch_layout` | `true` | switch the keyboard to the flipped text's language |
 | `normalize_thai` | `false` | fold a typed `เ`+`เ` into `แ` (see below) |
 | `restore_clipboard` | `true` | put your own clipboard back after pasting |
 | `copy_timeout_ms` | `600` | how long to wait for the app to answer the copy |
@@ -274,6 +279,12 @@ another combination with `keyflip hotkey`.
 **It fires while I am typing.** It should not — a shift press that modifies
 another key never counts as a tap. If it still happens, lower `double_tap_ms`.
 And if it is not firing when you want it to, raise it.
+
+**The text flipped but the keyboard did not switch.** keyflip only switches to
+a layout you have already enabled: Thai and an English one (ABC or U.S.) under
+**System Settings → Keyboard → Input Sources** on macOS, or **Settings → Time &
+language → Language & region** on Windows. Nothing switches when nothing was
+selected, so double-tapping shift on its own does not change the keyboard.
 
 **The wrong direction was chosen.** Auto-detection goes by whether the
 selection contains Thai script. For a mixed selection, select less — or bind

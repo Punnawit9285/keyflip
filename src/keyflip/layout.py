@@ -77,6 +77,9 @@ THAI_START, THAI_END = "฀", "๿"
 TH2EN = "th2en"
 EN2TH = "en2th"
 
+#: The language each direction writes in - where the keyboard belongs next.
+OUTPUT_LANGUAGE = {EN2TH: "th", TH2EN: "en"}
+
 
 def is_thai(ch: str) -> bool:
     return THAI_START <= ch <= THAI_END

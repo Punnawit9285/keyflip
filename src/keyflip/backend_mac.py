@@ -14,8 +14,11 @@ import threading
 import time
 from typing import Callable
 
+import objc
 import Quartz
 from AppKit import NSPasteboard, NSPasteboardTypeString
+from Foundation import NSBundle, NSThread
+from PyObjCTools import AppHelper
 from ApplicationServices import (
     AXIsProcessTrustedWithOptions,
     kAXTrustedCheckOptionPrompt,
@@ -225,6 +228,93 @@ def wait_modifiers_released(timeout_ms: int) -> bool:
             return True
         time.sleep(0.01)
     return False
+
+
+# --------------------------------------------------------------------------
+# keyboard layout
+# --------------------------------------------------------------------------
+#: Text Input Sources, bound on first use: HIToolbox has no PyObjC wrapper.
+#: The Copy/Create functions hand back an owned reference, so tell PyObjC not
+#: to retain it a second time - otherwise every flip leaks an input source.
+_TIS: dict = {}
+_OWNED = {"retval": {"already_cfretained": True}}
+
+
+def _tis() -> dict:
+    if not _TIS:
+        # AppKit links HIToolbox, so by now it is loaded and findable by id.
+        bundle = NSBundle.bundleWithIdentifier_("com.apple.HIToolbox")
+        objc.loadBundleFunctions(bundle, _TIS, [
+            ("TISCopyCurrentKeyboardInputSource", b"@", "", _OWNED),
+            ("TISCreateInputSourceList", b"@@Z", "", _OWNED),
+            ("TISGetInputSourceProperty", b"@@@"),
+            ("TISSelectInputSource", b"i@"),
+        ])
+        objc.loadBundleVariables(bundle, _TIS, [
+            ("kTISPropertyInputSourceCategory", b"@"),
+            ("kTISCategoryKeyboardInputSource", b"@"),
+            ("kTISPropertyInputSourceIsSelectCapable", b"@"),
+            ("kTISPropertyInputSourceLanguages", b"@"),
+        ])
+    return _TIS
+
+
+def _language(source) -> str:
+    """An input source's main language: "th" for Thai, "en" for ABC or U.S."""
+    tis = _tis()
+    languages = tis["TISGetInputSourceProperty"](
+        source, tis["kTISPropertyInputSourceLanguages"])
+    return str(languages[0]) if languages else ""
+
+
+def _select_language(language: str) -> bool:
+    tis = _tis()
+    if _language(tis["TISCopyCurrentKeyboardInputSource"]()) == language:
+        return True  # already there - and do not hop from U.S. over to ABC
+    sources = tis["TISCreateInputSourceList"]({
+        tis["kTISPropertyInputSourceCategory"]: tis["kTISCategoryKeyboardInputSource"],
+        tis["kTISPropertyInputSourceIsSelectCapable"]: True,
+    }, False) or ()
+    for source in sources:
+        if _language(source) == language:
+            return tis["TISSelectInputSource"](source) == 0
+    return False
+
+
+def _on_main_thread(fn: Callable[[], bool], timeout_s: float = 1.0) -> bool:
+    """Run ``fn`` on the main thread and wait for its answer.
+
+    Input sources belong to the main thread - macOS 14 started enforcing that
+    with an assertion that takes the whole process down - but the flip runs
+    on a worker.  The main run loop is always turning: NSApp's in the menu-bar
+    app, the listener's with --no-tray.  The timeout covers one that has
+    stopped, so a quit in progress cannot leave the flip hanging.
+    """
+    if NSThread.isMainThread():
+        return fn()
+    done = threading.Event()
+    answer: list[bool] = []
+
+    def call() -> None:
+        try:
+            answer.append(fn())
+        except Exception:  # an exception here would surface inside AppKit
+            pass
+        finally:
+            done.set()
+
+    AppHelper.callAfter(call)
+    done.wait(timeout_s)
+    return bool(answer and answer[0])
+
+
+def select_language(language: str) -> bool:
+    """Put the keyboard on an enabled layout for ``language`` ("th" or "en").
+
+    True when it ends up on one, including when it already was.  False when
+    the user has no such layout enabled, and then nothing changes.
+    """
+    return _on_main_thread(lambda: _select_language(language))
 
 
 def notify(title: str, message: str) -> None:
