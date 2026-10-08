@@ -26,3 +26,40 @@ def test_the_welcome_names_the_shortcut_actually_configured():
 
 def test_the_welcome_survives_having_no_main_shortcut():
     assert app._welcome_message(Config(hotkey="")) == "keyflip is running."
+
+
+# --- the Accessibility permission ----------------------------------------
+class PermissionBackend:
+    """Records the order of what startup asks of macOS."""
+
+    def __init__(self, trusted=False, prompt_grants=False):
+        self.trusted, self.prompt_grants, self.calls = trusted, prompt_grants, []
+
+    def has_accessibility(self, prompt=False):
+        self.calls.append("prompt" if prompt else "check")
+        return self.trusted or (prompt and self.prompt_grants)
+
+    def forget_stale_permission(self):
+        self.calls.append("forget")
+
+
+def test_a_trusted_start_touches_nothing():
+    be = PermissionBackend(trusted=True)
+    assert app._ensure_permission(be) is True
+    assert be.calls == ["check"]
+
+
+def test_a_stale_grant_is_cleared_before_macos_is_asked_again():
+    # An update is a new binary: the old switch is still listed as on, for a
+    # build that no longer exists.  Prompting over it changes nothing.
+    be = PermissionBackend(prompt_grants=True)
+    assert app._ensure_permission(be) is True
+    assert be.calls == ["check", "forget", "prompt"]
+
+
+def test_without_a_grant_it_waits_for_one(monkeypatch):
+    waited = []
+    monkeypatch.setattr(app, "_await_permission", lambda be: waited.append(be) or False)
+    be = PermissionBackend()
+    assert app._ensure_permission(be) is False
+    assert waited == [be]

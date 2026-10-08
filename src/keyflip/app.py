@@ -11,7 +11,7 @@ from .config import Config, config_dir, config_path
 from .core import FLIPPED, Flipper
 from .layout import EN2TH, TH2EN, convert, detect_direction, normalize_thai
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 
 def load_backend():
@@ -181,6 +181,16 @@ def _await_permission(backend) -> bool:
     return True
 
 
+def _ensure_permission(backend) -> bool:
+    """True once keyflip may read the keyboard, asking for it if need be."""
+    if backend.has_accessibility():
+        return True
+    # After an update the old build's grant is still listed, switched on, and
+    # useless to this one.  Clear it so the prompt lists this build afresh.
+    backend.forget_stale_permission()
+    return backend.has_accessibility(prompt=True) or _await_permission(backend)
+
+
 def _describe_hotkeys(config: Config) -> list[str]:
     rows = []
     for spec, label in ((config.hotkey, "flip (auto-detect)"),
@@ -215,7 +225,7 @@ def cmd_run(args) -> int:
         config.hotkey = args.hotkey
     backend = load_backend()
 
-    if not backend.has_accessibility(prompt=True) and not _await_permission(backend):
+    if not _ensure_permission(backend):
         return 2
 
     daemon = Daemon(config, backend, verbose=args.verbose)

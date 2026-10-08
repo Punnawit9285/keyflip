@@ -8,11 +8,12 @@ PY="${PYTHON:-.venv/bin/python}"
 rm -rf build dist
 "$PY" -m PyInstaller --noconfirm --clean packaging/keyflip-macos.spec
 
-# Ad-hoc signing is not optional in practice.  macOS pins an Accessibility
-# grant to the binary's identity; an unsigned bundle gets a new identity on
-# every rebuild, so the permission silently stops applying and the hotkey goes
-# dead until you toggle it off and on again.  A stable ad-hoc signature keeps
-# the grant across rebuilds.
+# Sign the bundle as a whole: an arm64 binary will not run unsigned.  Ad-hoc
+# does NOT keep the Accessibility grant across builds, though - its identity
+# is the binary's hash, which every build changes, so each update has to be
+# granted again.  keyflip clears the old build's entry at launch
+# (backend_mac.forget_stale_permission) so that is one switch to flip; only a
+# real signing certificate would remove the step.
 codesign --force --deep --sign - dist/keyflip.app
 
 echo

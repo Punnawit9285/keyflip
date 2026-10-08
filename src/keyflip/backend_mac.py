@@ -55,9 +55,32 @@ PERMISSION_HELP = (
     "  System Settings -> Privacy & Security -> Accessibility\n"
     "  and switch on the app you launched keyflip from\n"
     "  (keyflip.app, or your terminal if you are running it from source).\n\n"
-    "If it is already listed, toggle it off and on again - macOS caches the\n"
-    "old answer whenever the binary changes."
+    "If it is already listed and switched on, remove it with - and add it\n"
+    "again with + : the switch belongs to the exact build it was granted to."
 )
+
+_BUNDLE_ID = "com.keyflip.app"
+
+
+def forget_stale_permission() -> None:
+    """Clear an Accessibility entry left behind by an earlier keyflip.app.
+
+    The app is only ad-hoc signed, so macOS pins the grant to this exact
+    binary's hash, and every update is a different binary.  The list then
+    still shows keyflip switched on - for the old build, doing nothing for
+    this one - which is the most confusing state there is.  Clearing it lets
+    the prompt list this build afresh, so turning it on is all that is left.
+
+    Only for the bundled app: run from source the grant belongs to the
+    terminal, and that is not ours to touch.
+    """
+    if NSBundle.mainBundle().bundleIdentifier() != _BUNDLE_ID:
+        return
+    try:
+        subprocess.run(["/usr/bin/tccutil", "reset", "Accessibility", _BUNDLE_ID],
+                       check=False, capture_output=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        pass  # the prompt still works; the user may just see a stale entry
 
 
 _ACCESSIBILITY_PANE = (
@@ -110,14 +133,21 @@ def can_tap() -> bool:
     return True
 
 
-def _alert(title: str, body: str, buttons: tuple[str, ...]) -> int:
-    """A modal alert from a process with no windows.  Returns the button index."""
+def _alert(title: str, body: str, buttons: tuple[str, ...],
+           until: Callable[[], bool] | None = None) -> int | None:
+    """A modal alert from a process with no windows.  Returns the button index.
+
+    With ``until``, the alert also closes by itself as soon as that returns
+    True, and the result is None.
+    """
     from AppKit import (
         NSAlert,
         NSAlertFirstButtonReturn,
         NSApplication,
         NSApplicationActivationPolicyRegular,
+        NSModalResponseAbort,
     )
+    from Foundation import NSRunLoop, NSRunLoopCommonModes, NSTimer
 
     app = NSApplication.sharedApplication()
     app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
@@ -128,7 +158,24 @@ def _alert(title: str, body: str, buttons: tuple[str, ...]) -> int:
     alert.setInformativeText_(body)
     for label in buttons:
         alert.addButtonWithTitle_(label)
-    return int(alert.runModal()) - int(NSAlertFirstButtonReturn)
+
+    timer = None
+    if until is not None:
+        def check(_timer):
+            if until():
+                # abortModal, not stopModal: a timer is not an event, and
+                # stopModal would wait for the next one to arrive.
+                app.abortModal()
+        timer = NSTimer.timerWithTimeInterval_repeats_block_(0.5, True, check)
+        NSRunLoop.currentRunLoop().addTimer_forMode_(timer, NSRunLoopCommonModes)
+    try:
+        code = int(alert.runModal())
+    finally:
+        if timer is not None:
+            timer.invalidate()
+    if code == NSModalResponseAbort:
+        return None
+    return code - int(NSAlertFirstButtonReturn)
 
 
 def show_permission_alert() -> bool:
@@ -136,7 +183,12 @@ def show_permission_alert() -> bool:
 
     Double-clicking the app and having it vanish is the worst possible
     outcome: stderr goes nowhere, so without this the user sees nothing at all.
-    Returns True if they asked to be taken to the settings pane.
+
+    It closes by itself the moment the permission arrives.  Otherwise anyone
+    who goes to System Settings on their own - or through macOS's prompt -
+    comes back to keyflip still sitting on this alert, not listening for
+    anything, which looks exactly like keyflip being broken.  Returns False
+    only if they chose Quit.
     """
     from AppKit import NSWorkspace
     from Foundation import NSURL
@@ -149,7 +201,10 @@ def show_permission_alert() -> bool:
         "keyflip will start by itself as soon as you do - there is no need to "
         "open it again.",
         ("Open Accessibility Settings", "Quit"),
+        until=has_accessibility,
     )
+    if chosen is None:
+        return True  # granted while the alert was up
     if chosen != 0:
         return False
     NSWorkspace.sharedWorkspace().openURL_(NSURL.URLWithString_(_ACCESSIBILITY_PANE))

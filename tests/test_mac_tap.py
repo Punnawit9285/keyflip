@@ -185,3 +185,29 @@ def test_it_fires_only_after_right_shift_is_let_go(taps, monkeypatch):
 
 def test_a_chord_listener_does_not_ask_for_modifier_events(listener):
     assert not listener._by_tap, "flagsChanged is only worth watching for a tap"
+
+
+# --- the stale permission -------------------------------------------------
+class _Bundle:
+    def __init__(self, ident):
+        self.ident = ident
+
+    def mainBundle(self):
+        return self
+
+    def bundleIdentifier(self):
+        return self.ident
+
+
+def test_a_stale_grant_is_reset_only_for_the_app(monkeypatch):
+    ran = []
+    monkeypatch.setattr(be.subprocess, "run", lambda argv, **kw: ran.append(argv))
+
+    # Run from source the grant is the terminal's - never ours to reset.
+    monkeypatch.setattr(be, "NSBundle", _Bundle("com.apple.Terminal"))
+    be.forget_stale_permission()
+    assert ran == []
+
+    monkeypatch.setattr(be, "NSBundle", _Bundle("com.keyflip.app"))
+    be.forget_stale_permission()
+    assert ran == [["/usr/bin/tccutil", "reset", "Accessibility", "com.keyflip.app"]]

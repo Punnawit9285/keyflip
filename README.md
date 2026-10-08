@@ -39,6 +39,13 @@ is no way to read a global hotkey without it.
 It then lives in the menu bar as **ก⇄A**, with no Dock icon. Tick **Start at
 login** in its menu and you are done.
 
+**After every update, macOS asks for the permission again.** The grant belongs
+to the exact build it was given to, and without a paid Developer ID every
+build counts as a different app. Quit the old keyflip, replace it in
+Applications, open the new one and turn **keyflip** on once more. keyflip
+clears the old build's entry itself, so the list never shows a switch that is
+on but no longer does anything.
+
 > Because this build is not signed with a paid Apple Developer ID, macOS will
 > say the developer cannot be verified. To get past it once:
 > **right-click keyflip in Applications → Open → Open**. Drag it out of the
@@ -252,8 +259,10 @@ keyflip config
 
 **Nothing happens when I press the shortcut.** Run `keyflip doctor`. On macOS
 the usual cause is that Accessibility permission is attached to the wrong
-binary — macOS pins the grant to the binary's signature, so a rebuilt or
-replaced app needs a fresh one. Remove keyflip from the Accessibility list with
+binary — macOS pins the grant to the binary's hash, so an updated, rebuilt or
+replaced app needs a fresh one, even while the list still shows keyflip
+switched on. Opening the new keyflip clears the old entry and asks again. If
+it still does not start, remove keyflip from the Accessibility list with
 **−**, add it again with **+**, and if it is still refused:
 
 ```sh
