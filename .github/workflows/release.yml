@@ -71,6 +71,27 @@ jobs:
           name: dmg-${{ matrix.arch }}
           path: dist/*.dmg
           if-no-files-found: error
+      # After the upload on purpose, as on Windows: a failure here still leaves
+      # the disk image downloadable for inspection, but nothing is released.
+      - name: Check install.sh installs and updates from the disk image
+        timeout-minutes: 5
+        run: |
+          dmg="$(ls dist/*.dmg)"
+          app=/Applications/keyflip.app
+          # Stamp it the way a browser would, so the check below means
+          # something: whatever the image carried, the app must come out clean.
+          xattr -w com.apple.quarantine "0081;$(printf '%x' "$(date +%s)");Safari;" "$dmg"
+          KEYFLIP_DMG="$dmg" ./install.sh
+          codesign --verify --deep --strict --verbose=2 "$app"
+          if xattr -r "$app" | grep -q com.apple.quarantine; then
+            echo "install.sh left $app quarantined - Gatekeeper would block it" >&2
+            exit 1
+          fi
+          "$app/Contents/MacOS/keyflip" --version
+          # Again, over the copy the first run left running: the update path.
+          KEYFLIP_DMG="$dmg" ./install.sh
+          "$app/Contents/MacOS/keyflip" --version
+          pkill -x keyflip || true
 
   windows:
     needs: test
@@ -166,15 +187,27 @@ jobs:
           body: |
             ## Install
 
-            **macOS** — download the `.dmg` for your Mac (`arm64` for Apple
-            silicon, `x86_64` for Intel), open it, and drag keyflip to
-            Applications. On first launch it will ask for Accessibility
-            permission and start by itself once you grant it.
+            **macOS** — the quickest way is one line in Terminal. It downloads
+            the right build for your Mac, puts keyflip in Applications and
+            opens it, with no security warning to get past. Run it again to
+            update:
 
-            macOS will say the developer cannot be verified, because this
-            build is not signed with an Apple Developer ID. To open it anyway:
-            **right-click keyflip in Applications → Open → Open**. You only
-            need to do that once.
+            ```
+            curl -fsSL https://raw.githubusercontent.com/Punnawit9285/keyflip/main/install.sh | bash
+            ```
+
+            Or download the `.dmg` for your Mac below (`arm64` for Apple
+            silicon, `x86_64` for Intel), open it, and drag keyflip to
+            Applications. The first time you open it, macOS refuses with
+            *"keyflip" Not Opened*, because this build is not notarized with
+            an Apple Developer ID. Click **Done**, then open **System Settings
+            → Privacy & Security**, scroll down to **Security**, click
+            **Open Anyway** next to keyflip and confirm with your password.
+            Right-click → Open no longer gets past it on macOS 15 and later.
+            Every new version needs this once more; the Terminal line does not.
+
+            Either way, keyflip then asks for Accessibility permission and
+            starts by itself the moment you grant it.
 
             **Windows** — download the `-setup.exe`, open it, and click
             **Install**. That is the whole installation: no administrator

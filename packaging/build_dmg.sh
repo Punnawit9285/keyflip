@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 VERSION="${1:-$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/keyflip/app.py)}"
 SUFFIX="${2:-}"
 APP="dist/keyflip.app"
+# install.sh builds this name from the release tag, so keep the two in step.
 DMG="dist/keyflip-${VERSION}${SUFFIX:+-$SUFFIX}.dmg"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT

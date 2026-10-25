@@ -19,16 +19,49 @@ Slack, Notes, the terminal.
 ## Install
 
 Download the latest build from the
-[Releases page](https://github.com/Punnawit9285/keyflip/releases). No terminal
-needed.
+[Releases page](https://github.com/Punnawit9285/keyflip/releases) — for a Mac
+or a Windows PC. There is no iPhone or iPad version.
 
 ### macOS
 
-Open the `.dmg` — `arm64` for Apple silicon, `x86_64` for Intel — and drag
-keyflip to Applications. Open it from there.
+**The quickest way is one line in Terminal.** Open Terminal (⌘ Space, type
+*Terminal*, Return), paste this and press Return:
 
-On first launch it asks for Accessibility permission and offers to take you
-straight to the right pane:
+```sh
+curl -fsSL https://raw.githubusercontent.com/Punnawit9285/keyflip/main/install.sh | bash
+```
+
+It downloads the latest build for your Mac — Apple silicon or Intel — checks
+it arrived intact, puts keyflip in Applications and opens it. Nothing passes
+through a browser, so there is no quarantined download for macOS to block and
+no "could not verify" warning to get past. Run the same line again to update;
+it quits the old keyflip first.
+
+**Or download it yourself.** Open the `.dmg` — `arm64` for Apple silicon,
+`x86_64` for Intel — drag keyflip to Applications, and open it from there.
+macOS refuses the first time:
+
+> **“keyflip” Not Opened** — Apple could not verify “keyflip” is free of
+> malware that may harm your Mac or compromise your privacy.
+
+That is because this build is not notarized with a paid Apple Developer ID,
+not because anything is wrong with it. Click **Done**, then let it through
+once:
+
+1. Open **System Settings → Privacy & Security** and scroll down to
+   **Security**.
+2. Next to *“keyflip” was blocked to protect your Mac*, click **Open Anyway**.
+3. Confirm with **Open Anyway** again and your password or Touch ID.
+
+Right-click → **Open** used to be the way past this, and still is on macOS 14
+and earlier, but since macOS 15 it only shows the same dialog again. Every new
+version downloaded this way needs **Open Anyway** once more. Drag keyflip out
+of the disk image to Applications *before* opening it — an app run from inside
+a downloaded `.dmg` is launched from a temporary read-only copy, and an
+Accessibility grant can never stick to that.
+
+Either way, on first launch keyflip asks for Accessibility permission and
+offers to take you straight to the right pane:
 
 > System Settings → Privacy & Security → **Accessibility** → turn on **keyflip**
 
@@ -42,16 +75,9 @@ login** in its menu and you are done.
 **After every update, macOS asks for the permission again.** The grant belongs
 to the exact build it was given to, and without a paid Developer ID every
 build counts as a different app. Quit the old keyflip, replace it in
-Applications, open the new one and turn **keyflip** on once more. keyflip
-clears the old build's entry itself, so the list never shows a switch that is
-on but no longer does anything.
-
-> Because this build is not signed with a paid Apple Developer ID, macOS will
-> say the developer cannot be verified. To get past it once:
-> **right-click keyflip in Applications → Open → Open**. Drag it out of the
-> disk image to Applications *before* opening it — an app run from inside a
-> downloaded `.dmg` is launched from a temporary read-only copy, and an
-> Accessibility grant can never stick to that.
+Applications (the Terminal line does both for you), open the new one and turn
+**keyflip** on once more. keyflip clears the old build's entry itself, so the
+list never shows a switch that is on but no longer does anything.
 
 ### Windows
 
@@ -256,6 +282,12 @@ keyflip config
 ---
 
 ## Troubleshooting
+
+**macOS will not open keyflip at all.** If there is no **Open Anyway** button
+under Privacy & Security, open keyflip once more and look again — it only
+shows for a while after macOS has blocked the app. Or skip all of that with
+the one-line Terminal install, which also covers a Mac that calls keyflip
+"damaged": it fetches a fresh copy and checks it before installing.
 
 **Nothing happens when I press the shortcut.** Run `keyflip doctor`. On macOS
 the usual cause is that Accessibility permission is attached to the wrong

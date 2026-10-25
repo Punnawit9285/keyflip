@@ -15,6 +15,10 @@ rm -rf build dist
 # (backend_mac.forget_stale_permission) so that is one switch to flip; only a
 # real signing certificate would remove the step.
 codesign --force --deep --sign - dist/keyflip.app
+# A seal that does not cover the bundle exactly is what macOS calls "damaged"
+# once the app is downloaded, and that dialog has no Open Anyway - only Move
+# to Trash.  Never let a build like that leave this script.
+codesign --verify --deep --strict --verbose=2 dist/keyflip.app
 
 echo
 echo "Built dist/keyflip.app"
